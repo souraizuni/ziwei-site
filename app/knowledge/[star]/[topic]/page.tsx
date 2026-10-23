@@ -19,29 +19,30 @@ import {
   ALL_STARS,
   ALL_TOPICS,
   getKnowledge,
-  getAllKnowledgeRoutes,
   STAR_BRIEF_SEO,
   STAR_TO_SLUG,
   SLUG_TO_STAR,
 } from '@/lib/seo/knowledge';
-import { SITE_URL } from '@/lib/site';
+import { SITE_NAME, SITE_URL } from '@/lib/site';
+import KnowledgeAsk from '@/components/KnowledgeAsk';
 
 // 允许动态参数：如果某个 star/topic 组合不在 generateStaticParams 列表中
 // 也允许运行时按需渲染，避免中文 URL 编码问题导致 404
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  const routes = getAllKnowledgeRoutes();
+  // 断语库未开源时，没有断语的专题改由 KnowledgeAsk 请 AI 即时讲解，所以 14×13 全部生成
   // URL 用拼音 slug 替代中文，避开 Vercel/CDN 中文路由边界问题
-  return routes.map(r => ({ star: r.slug, topic: r.topic }));
+  return ALL_STARS.flatMap(star => ALL_TOPICS.map(topic => ({ star: STAR_TO_SLUG[star], topic })));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ star: string; topic: string }> }) {
   const { star: slug, topic } = await params;
   const star = SLUG_TO_STAR[slug];
   if (!star) return {};
+  if (!ALL_TOPICS.includes(topic as TopicKey)) return {};
   const data = getKnowledge(star, topic as TopicKey);
-  if (!data.exists) return {};
+  if (!data.exists) return { title: `${star}入${data.palaceName.replace(/宫$/, '')}宫 · ${data.topicLabel}` };
 
   const title = `${star}入${data.palaceName}宫 · ${data.topicLabel} · 倪海厦体系详解`;
   const description = data.parsed.dingdiao
@@ -71,8 +72,9 @@ export default async function KnowledgePage({ params }: { params: Promise<{ star
   const { star: slug, topic } = await params;
   const star = SLUG_TO_STAR[slug];
   if (!star) notFound();
+  if (!ALL_TOPICS.includes(topic as TopicKey)) notFound();
   const data = getKnowledge(star, topic as TopicKey);
-  if (!data.exists) notFound();
+  if (!data.exists) return <KnowledgeAsk star={star} topic={topic as TopicKey} />;
 
   // 同主星其他 topic
   const otherTopicsForStar = ALL_TOPICS.filter(t => t !== topic && getKnowledge(star, t).exists);
@@ -85,10 +87,10 @@ export default async function KnowledgePage({ params }: { params: Promise<{ star
     '@type': 'Article',
     headline: `${star}入${data.palaceName}宫 · ${data.topicLabel}`,
     description: data.parsed.dingdiao,
-    author: { '@type': 'Organization', name: '紫微研究 · 倪海厦正宗' },
+    author: { '@type': 'Organization', name: SITE_NAME },
     publisher: {
       '@type': 'Organization',
-      name: '紫微研究',
+      name: SITE_NAME,
       url: SITE_URL,
     },
     datePublished: '2026-04-28',
@@ -276,7 +278,7 @@ export default async function KnowledgePage({ params }: { params: Promise<{ star
 
       {/* 页脚 */}
       <footer style={{ borderTop: '1px solid rgba(184,146,42,0.15)', padding: '20px 24px', textAlign: 'center', fontSize: '11px', color: 'var(--tx-3)', letterSpacing: '0.1em' }}>
-        <div style={{ marginBottom: '6px' }}>紫微研究 · 基于倪海厦正宗体系 · 仅供学习参考</div>
+        <div style={{ marginBottom: '6px' }}>{SITE_NAME} · 依倪海厦体系 · 仅供学习参考</div>
         <div style={{ opacity: 0.85 }}>本平台不构成任何医疗、投资、法律或重大决策建议</div>
       </footer>
     </div>

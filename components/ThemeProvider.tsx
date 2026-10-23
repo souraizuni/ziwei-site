@@ -22,15 +22,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem('ziwei-theme') as Theme | null;
-    if (saved === 'light' || saved === 'dark') setTheme(saved);
+    try {
+      const saved = localStorage.getItem('ziwei-theme') as Theme | null;
+      if (saved === 'light' || saved === 'dark') setTheme(saved);
+    } catch { /* 浏览器禁止储存时沿用目前主题 */ }
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
-    localStorage.setItem('ziwei-theme', theme);
+    try { localStorage.setItem('ziwei-theme', theme); } catch { /* 同上 */ }
   }, [theme, mounted]);
 
   const toggle = () => {

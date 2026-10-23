@@ -5,7 +5,7 @@
 /* ─── 2.0 设计系统 Token ─────────────────────────────────── */
 :root {
   /* 字体 */
-  --font: -apple-system, 'PingFang SC', 'Helvetica Neue', 'Segoe UI', sans-serif;
+  --font: -apple-system, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang SC', 'Helvetica Neue', 'Segoe UI', sans-serif;
   --font-mono: 'SF Mono', 'Menlo', 'Noto Sans Mono', 'Consolas', monospace;
 
   /* 背景层级 */
@@ -434,3 +434,127 @@ body {
    select 本身是半透明底 + 浅色字，Windows 上原生下拉列表是白底，浅灰字配白底看不清（#14） */
 [data-theme="dark"] select { color-scheme: dark; }
 [data-theme="dark"] select option { background-color: var(--bg-2); color: var(--tx-1); }
+
+/* ─── 命盘页（app/chart/page.tsx）──────────────────────────── */
+.chart-page { min-height: 100vh; background: var(--bg-0); color: var(--tx-1); }
+.chart-nav {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  background: color-mix(in srgb, var(--bg-0) 90%, transparent);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--bdr);
+}
+.chart-nav-brand { font-size: 12px; letter-spacing: 0.4em; color: var(--ac); text-decoration: none; font-weight: 500; }
+.chart-nav-links { display: flex; gap: 8px; }
+.chart-nav-links a, .chart-nav-links button {
+  font-size: 12px; padding: 5px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--bdr-med); color: var(--tx-2); background: transparent; text-decoration: none;
+}
+.chart-nav-links a:hover, .chart-nav-links button:hover { color: var(--ac); border-color: var(--ac-bdr); }
+.chart-nav-links :focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+
+.chart-form-wrap { max-width: 720px; margin: 0 auto; padding: 40px 16px 64px; }
+.chart-form-wrap h1 { font-size: 28px; font-weight: 700; letter-spacing: 0.08em; margin-bottom: 8px; color: var(--tx-0); }
+.chart-lede { color: var(--tx-3); margin-bottom: 28px; font-size: 14px; line-height: 1.7; }
+.chart-error { margin-top: 16px; color: var(--ji); font-size: 13px; }
+
+.chart-history { margin-top: 40px; }
+.chart-history h2 { font-size: 12px; letter-spacing: 0.3em; color: var(--tx-3); margin-bottom: 12px; font-weight: 500; }
+.chart-history ul { display: flex; flex-direction: column; gap: 8px; }
+.chart-history li { display: flex; align-items: stretch; border: 1px solid var(--bdr-med); border-radius: 10px; overflow: hidden; }
+.chart-history-item { flex: 1; min-width: 0; text-align: left; padding: 10px 14px; font-size: 13px; color: var(--tx-1); background: transparent; cursor: pointer; }
+.chart-history-item:hover { background: var(--ac-bg); color: var(--ac); }
+.chart-history-remove { width: 40px; color: var(--tx-3); background: transparent; border-left: 1px solid var(--bdr); cursor: pointer; font-size: 16px; }
+.chart-history-remove:hover { color: var(--ji); }
+.chart-history-note { margin-top: 10px; font-size: 11px; color: var(--tx-3); }
+
+.chart-result { max-width: 1320px; margin: 0 auto; padding: 16px max(12px, env(safe-area-inset-left, 0px)) 40px; }
+.chart-result-head { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; font-size: 12px; color: var(--tx-3); letter-spacing: 0.08em; margin-bottom: 12px; }
+.chart-result-name { font-size: 16px; color: var(--tx-0); font-weight: 600; }
+.chart-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.chart-board-col, .chart-insight-col { min-width: 0; }
+.chart-insight-col { height: min(78vh, 720px); }
+@media (min-width: 1024px) {
+  .chart-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 20px; }
+  .chart-insight-col { position: sticky; top: 64px; height: calc(100vh - 84px); }
+}
+
+/* 解读面板等元件使用的 --t-* 别名（原本未定义，颜色会退回继承值），对应到上方的设计 token */
+:root {
+  --t-bg: var(--bg-0);
+  --t-surface: var(--bg-1);
+  --t-card: var(--bg-card);
+  --t-border: var(--bdr-med);
+  --t-border-acc: var(--ac-bdr);
+  --t-gold: var(--ac);
+  --t-text: var(--tx-0);
+  --t-text1: var(--tx-1);
+  --t-text2: var(--tx-2);
+  --t-faint: var(--tx-3);
+}
+.card-glass { background: var(--bg-card); border: 1px solid var(--bdr-med); }
+
+/* ─── 模型设定视窗（components/AiSettingsDialog.tsx）──────────── */
+.ai-dlg-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(0,0,0,0.55); overflow-y: auto;
+}
+.ai-dlg {
+  --dlg-ok: var(--lu); --dlg-err: var(--ji);
+  width: 100%; max-width: 520px; margin-top: 4vh;
+  background: var(--bg-1); color: var(--tx-1);
+  border: 1px solid var(--bdr-med); border-radius: 16px; box-shadow: var(--sh-lg);
+  padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 14px;
+}
+.ai-dlg-head { display: flex; align-items: center; justify-content: space-between; }
+.ai-dlg-head h2 { font-size: 18px; font-weight: 600; letter-spacing: 0.12em; color: var(--tx-0); }
+.ai-dlg-x { width: 32px; height: 32px; border-radius: 50%; font-size: 20px; color: var(--tx-3); background: transparent; cursor: pointer; }
+.ai-dlg-x:hover { color: var(--tx-0); background: var(--ac-bg); }
+.ai-dlg-lede { font-size: 13px; line-height: 1.7; color: var(--tx-2); }
+.ai-dlg-field { display: flex; flex-direction: column; gap: 6px; }
+.ai-dlg-label { font-size: 12px; letter-spacing: 0.08em; color: var(--tx-2); }
+.ai-dlg-hint { font-size: 11px; color: var(--tx-3); }
+.ai-dlg-row { display: flex; gap: 8px; }
+.ai-dlg-row input { flex: 1; min-width: 0; }
+.ai-dlg input, .ai-dlg select {
+  width: 100%; padding: 9px 12px; border-radius: 10px; font-size: 14px;
+  background: var(--bg-0); color: var(--tx-0); border: 1px solid var(--bdr-med);
+}
+.ai-dlg-row input { width: auto; }
+.ai-dlg input:focus, .ai-dlg select:focus { outline: none; border-color: var(--ac); box-shadow: 0 0 0 3px var(--ac-bg); }
+.ai-dlg-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-dlg-chip {
+  font-size: 12px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--bdr-med); color: var(--tx-2); background: transparent;
+}
+.ai-dlg-chip:hover { border-color: var(--ac-bdr); color: var(--ac); }
+.ai-dlg-chip-on { border-color: var(--ac); color: var(--ac); background: var(--ac-bg); }
+.ai-dlg-btn {
+  flex-shrink: 0; font-size: 13px; padding: 8px 14px; border-radius: 10px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--bdr-med); color: var(--tx-1); background: transparent;
+}
+.ai-dlg-btn:hover:not(:disabled) { border-color: var(--ac-bdr); color: var(--ac); }
+.ai-dlg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ai-dlg-primary { background: var(--ac); border-color: var(--ac); color: var(--bg-0); font-weight: 600; }
+.ai-dlg-primary:hover:not(:disabled) { color: var(--bg-0); filter: brightness(1.08); }
+.ai-dlg-danger { color: var(--dlg-err); }
+.ai-dlg-actions { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ai-dlg-actions-right { display: flex; gap: 8px; }
+.ai-dlg-status { font-size: 12px; line-height: 1.6; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--bdr); }
+.ai-dlg-status-info { color: var(--tx-2); }
+.ai-dlg-status-ok { color: var(--dlg-ok); border-color: color-mix(in srgb, var(--dlg-ok) 40%, transparent); }
+.ai-dlg-status-error { color: var(--dlg-err); border-color: color-mix(in srgb, var(--dlg-err) 40%, transparent); }
+.ai-dlg-notes { font-size: 11px; line-height: 1.7; color: var(--tx-3); padding-left: 16px; list-style: disc; }
+.ai-dlg :focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+
+[data-theme="dark"] .ai-dlg { --dlg-ok: #5cc98b; --dlg-err: #f08a7e; }
+
+/* 「模型设定」入口按钮（页首、解读面板） */
+.ai-settings-link {
+  font-size: 12px; padding: 5px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--bdr-med); color: var(--tx-2); background: transparent;
+}
+.ai-settings-link:hover { color: var(--ac); border-color: var(--ac-bdr); }

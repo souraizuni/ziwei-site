@@ -6,6 +6,8 @@ import { formToBirthInfo } from '@/lib/ziwei/share';
 import { generateChart as buildChart } from '@/lib/ziwei/algorithm';
 import type { BirthInfo, ZiweiChart } from '@/lib/ziwei/types';
 import { useTheme } from '@/components/ThemeProvider';
+import { NO_PROVIDER_COPY } from '@/lib/ai/client';
+import { openAiSettings } from '@/lib/ai/settings';
 
 // ─── AiContent 渲染器（与 InsightPanel 一致）────────────────
 function AiContent({ text, streaming }: { text: string; streaming?: boolean }) {
@@ -65,7 +67,9 @@ export default function HemingPage() {
   const [question, setQuestion] = useState('');
   const [analysisError, setAnalysisError] = useState(false);
   // 开源版不含 /api/heming：接口 404 时单独说明，而不是让用户反复重试
-  const [apiMissing, setApiMissing] = useState(false);
+  /** 失败说明（site/api-bridge.ts 放在标头）与是否要引导去「模型设定」 */
+  const [errorCopy, setErrorCopy] = useState('');
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const analysisRef = useRef<HTMLDivElement>(null);
 
@@ -93,6 +97,8 @@ export default function HemingPage() {
     setAnalyzing(true);
     setAnalysis('');
     setAnalysisError(false);
+    setErrorCopy('');
+    setNeedsSetup(false);
 
     try {
       // 并行起两张盘（如果还没起）
@@ -117,8 +123,12 @@ export default function HemingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chartA: cA, chartB: cB, question: q ?? undefined }),
       });
-      if (res.status === 404) { setApiMissing(true); throw new Error('api-missing'); }
-      if (!res.ok || !res.body) throw new Error();
+      if (!res.ok || !res.body) {
+        const copy = res.headers.get('x-ai-error');
+        setErrorCopy(copy ? decodeURIComponent(copy) : res.status === 404 ? NO_PROVIDER_COPY : '');
+        setNeedsSetup(res.status === 404 || res.headers.get('x-ai-settings') === '1');
+        throw new Error('ai-failed');
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -244,7 +254,7 @@ export default function HemingPage() {
             <div style={{ textAlign: 'center', padding: '32px 0' }}>
               <div style={{ fontSize: '13px', color: 'var(--tx-3)', marginBottom: '24px', lineHeight: 1.7 }}>
                 填好双方出生信息后，点击下方按钮<br />
-                AI 将基于倪海厦体系深度分析两人缘分匹配度
+                AI 将依倪海厦体系分析两人缘分匹配度（约需一分钟）
               </div>
               <button
                 onClick={() => runAnalysis()}
@@ -276,7 +286,7 @@ export default function HemingPage() {
                 border: '2px solid var(--bdr-med)', borderTopColor: 'var(--ac)',
                 borderRadius: '50%', animation: 'spin 0.8s linear infinite',
               }} />
-              正在对比双方命盘…
+              AI 正在对比双方命盘，约需一分钟…
             </div>
           )}
 
@@ -284,9 +294,12 @@ export default function HemingPage() {
 
           {analysisError && (
             <div style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--bdr)', background: 'var(--bg-card)', fontSize: '13px', color: 'var(--tx-2)', marginTop: '12px' }}>
-              {apiMissing
-                ? '开源版不含合盘 AI 分析接口（/api/heming），需要你自己实现后才能用。两人的命盘可以分别到「排盘」页（/chart）查看。'
-                : '分析暂时不可用，请重试。'}
+              {errorCopy || '分析中断了，请稍后再试一次。'}
+              {needsSetup && (
+                <div style={{ marginTop: '10px' }}>
+                  <button type="button" className="ai-settings-link" onClick={openAiSettings}>模型设定</button>
+                </div>
+              )}
             </div>
           )}
         </div>

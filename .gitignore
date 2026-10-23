@@ -7,3 +7,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 node_modules
+
+# 单页版打包输出（node site/build.mjs）
+/dist-site

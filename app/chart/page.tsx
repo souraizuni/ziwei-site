@@ -1,75 +1,115 @@
 'use client';
-import { useState } from 'react';
-import BirthForm from '@/components/BirthForm';
+import { useRef, useState } from 'react';
+import Link from 'next/link';
+import BirthForm, { type BirthFormState } from '@/components/BirthForm';
 import ChartBoard from '@/components/ChartBoard';
 import InsightPanel from '@/components/InsightPanel';
-import TimeNav, { type TimeView } from '@/components/TimeNav';
 import { generateChart } from '@/lib/ziwei/algorithm';
+import { useHistory } from '@/lib/ziwei/history';
+import { SITE_NAME } from '@/lib/site';
+import { inClaude } from '@/lib/ai/client';
+import { openAiSettings } from '@/lib/ai/settings';
 import type { BirthInfo, ZiweiChart, Palace } from '@/lib/ziwei/types';
 
 /**
- * 命盘页 —— 开源版「排盘引擎 Demo」
+ * 命盘页：出生资料 → 命盘方格 + AI 解读。
  *
- * 这是一个最小可运行示例：用本仓库的排盘引擎 generateChart() 配合基础 UI
- * 组件，渲染一张完整紫微命盘 + 基础解读，并支持本命 / 大限 / 流年切换。
- *
- * 说明：线上商业版的完整交互界面（重设计的新 UI、AI 流式解读、合盘、分享
- * 卡片等）不在开源范围内；但排盘内核——安星算法、四化、格局识别、古籍库——
- * 完全开放（见 lib/ziwei/*），可自由二次开发出你自己的界面。
+ * 本命 / 大限 / 流年切换在 ChartBoard 内；点宫位会标出三方四正，
+ * 并在右侧解读面板提供「解读此宫」。宽萤幕左右两栏，窄萤幕上下排。
  */
 export default function ChartPage() {
   const [chart, setChart] = useState<ZiweiChart | null>(null);
+  const [error, setError] = useState('');
   const [selectedPalace, setSelectedPalace] = useState<Palace | null>(null);
-  const [view, setView] = useState<TimeView>('mingpan');
-  const [liunianYear, setLiunianYear] = useState(() => new Date().getFullYear());
+  const [prefill, setPrefill] = useState<{ key: string; form: BirthFormState } | null>(null);
+  const { history, save, remove } = useHistory();
+  const lastForm = useRef<BirthFormState | null>(null);
 
-  // ── 未起盘：展示出生信息表单 ──
+  const submit = (info: BirthInfo) => {
+    try {
+      setChart(generateChart(info));
+      setError('');
+      if (lastForm.current) save(lastForm.current);
+      window.scrollTo(0, 0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '排盘失败，请检查出生日期是否正确。');
+    }
+  };
+
+  const nav = (
+    <nav className="chart-nav">
+      <Link href="/" className="chart-nav-brand">{SITE_NAME}</Link>
+      <div className="chart-nav-links">
+        {chart && (
+          <button type="button" onClick={() => { setChart(null); setSelectedPalace(null); }}>重新起盘</button>
+        )}
+        <Link href="/heming">合盘</Link>
+        <Link href="/knowledge">百科</Link>
+        {!inClaude() && <button type="button" onClick={openAiSettings}>模型</button>}
+      </div>
+    </nav>
+  );
+
+  // ── 未起盘：出生资料表单 ──
   if (!chart) {
     return (
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 20px' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>紫微斗数排盘</h1>
-        <p style={{ color: '#888', marginBottom: 32, fontSize: 14, lineHeight: 1.7 }}>
-          输入出生年月日时，开源排盘引擎即时生成命盘。
-          <br />
-          （本页为引擎 Demo，完整商业版界面不在开源范围；排盘内核完全开放。）
-        </p>
-        <BirthForm onSubmit={(info: BirthInfo) => setChart(generateChart(info))} />
-      </main>
+      <div className="chart-page">
+        {nav}
+        <main className="chart-form-wrap">
+          <h1>紫微斗数排盘</h1>
+          <p className="chart-lede">
+            输入出生年月日时与出生地，即时排出命盘；出生地用于真太阳时校正。
+          </p>
+          <BirthForm
+            key={prefill?.key ?? 'new'}
+            initialData={prefill?.form}
+            onFormSave={f => { lastForm.current = f; }}
+            onSubmit={submit}
+          />
+          {error && <p className="chart-error">{error}</p>}
+
+          {history.length > 0 && (
+            <section className="chart-history">
+              <h2>最近排过的命盘</h2>
+              <ul>
+                {history.map(h => (
+                  <li key={h.id}>
+                    <button type="button" className="chart-history-item"
+                      onClick={() => { setPrefill({ key: h.id + Date.now(), form: h.form }); window.scrollTo(0, 0); }}>
+                      {h.label}
+                    </button>
+                    <button type="button" className="chart-history-remove" aria-label="删除这笔纪录" onClick={() => remove(h.id)}>×</button>
+                  </li>
+                ))}
+              </ul>
+              <p className="chart-history-note">纪录只存在这个浏览器里，点选后会带入上方表单。</p>
+            </section>
+          )}
+        </main>
+      </div>
     );
   }
 
   // ── 已起盘：命盘 + 解读 ──
+  const b = chart.birthInfo;
   return (
-    <main style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px' }}>
-      <button
-        type="button"
-        onClick={() => { setChart(null); setSelectedPalace(null); }}
-        style={{
-          marginBottom: 16, padding: '6px 14px', cursor: 'pointer',
-          border: '1px solid #ccc', borderRadius: 8, background: 'transparent',
-        }}
-      >
-        ← 重新起盘
-      </button>
-
-      <TimeNav
-        chart={chart}
-        view={view}
-        liunianYear={liunianYear}
-        onViewChange={setView}
-        onYearChange={setLiunianYear}
-      />
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)',
-          gap: 20, marginTop: 16, alignItems: 'start',
-        }}
-      >
-        <ChartBoard chart={chart} onPalaceSelect={setSelectedPalace} />
-        <InsightPanel chart={chart} selectedPalace={selectedPalace} />
-      </div>
-    </main>
+    <div className="chart-page">
+      {nav}
+      <main className="chart-result">
+        <div className="chart-result-head">
+          {b.name && <span className="chart-result-name">{b.name}</span>}
+          <span>{b.year} 年 {b.month} 月 {b.day} 日 · {b.gender === 'male' ? '男' : '女'}{b.city ? ` · ${b.city}` : ''}</span>
+          <span>{chart.wuxingJuName}</span>
+        </div>
+        <div className="chart-grid">
+          <div className="chart-board-col">
+            <ChartBoard chart={chart} onPalaceSelect={setSelectedPalace} />
+          </div>
+          <div className="chart-insight-col">
+            <InsightPanel chart={chart} selectedPalace={selectedPalace} />
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

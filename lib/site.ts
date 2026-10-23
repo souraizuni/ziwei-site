@@ -6,3 +6,6 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3
 
 /** 只取域名部分，用于界面上展示（如分享卡底部） */
 export const SITE_HOST = SITE_URL.replace(/^https?:\/\//, '');
+
+/** 站名：标题、页首、页尾、分享卡都用这一个，改名只要改这里 */
+export const SITE_NAME = '紫微命盘';

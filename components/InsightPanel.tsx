@@ -3,11 +3,17 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ZiweiChart, Palace } from '@/lib/ziwei/types';
 import type { TimeView } from './TimeNav';
+import { NO_PROVIDER_COPY, useAiProvider } from '@/lib/ai/client';
+import { openAiSettings } from '@/lib/ai/settings';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   hidden?: boolean; // don't show user bubble for auto/topic messages
+  /** 失败说明：只显示、不送回模型 */
+  error?: boolean;
+  /** 失败原因要读者去「模型设定」处理 */
+  setup?: boolean;
 }
 
 interface SelectedSiHua {
@@ -138,6 +144,7 @@ const PALACE_ROLES: Record<string, string> = {
   '疾厄宫': '身体健康、意外',
   '迁移宫': '外出机遇、人际格局',
   '交友宫': '朋友圈、贵人、小人',
+  '仆役宫': '朋友圈、贵人、小人',
   '官禄宫': '事业成就、社会地位',
   '田宅宫': '不动产、家庭环境',
   '福德宫': '精神享受、内心福分',
@@ -154,7 +161,7 @@ function AiContent({ text, streaming }: { text: string; streaming?: boolean }) {
         if (sectionMatch) {
           return (
             <div key={i} className="pt-3 pb-0.5 first:pt-0">
-              <span className="text-[11px] font-semibold tracking-wide" style={{ color: 'var(--t-gold)' }}>
+              <span className="text-[13px] font-semibold tracking-wide" style={{ color: 'var(--t-gold)' }}>
                 【{sectionMatch[1]}】
               </span>
             </div>
@@ -163,7 +170,7 @@ function AiContent({ text, streaming }: { text: string; streaming?: boolean }) {
         if (line.trim() === '') return <div key={i} className="h-1" />;
         const parts = line.split(/\*\*(.+?)\*\*/);
         return (
-          <div key={i} className="text-[11px] leading-relaxed" style={{ color: 'var(--t-text2)' }}>
+          <div key={i} className="text-[13px] leading-[1.85]" style={{ color: 'var(--t-text2)' }}>
             {parts.map((part, j) =>
               j % 2 === 0
                 ? part
@@ -186,10 +193,12 @@ export default function InsightPanel({ chart, selectedPalace, selectedSiHua }: I
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [activeTopic, setActiveTopic] = useState<string>('overview');
+  const [activeTopic, setActiveTopic] = useState<string>('');
+  const provider = useAiProvider();
+  /** 点了宫位后，等读者按「解读此宫」才发问 */
+  const [pendingPalace, setPendingPalace] = useState<Palace | null>(null);
   const messagesRef = useRef<Message[]>([]); // always-current copy for closures
   const loadingRef = useRef(false);
-  const autoLoaded = useRef(false);
   const lastPalaceBranch = useRef<number | undefined>(undefined);
   const lastSiHuaKey = useRef<string | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -205,28 +214,30 @@ export default function InsightPanel({ chart, selectedPalace, selectedSiHua }: I
     }
   }, [messages]);
 
-  // Auto-generate 命格总览 on mount
-  useEffect(() => {
-    if (autoLoaded.current) return;
-    autoLoaded.current = true;
-    sendMessage(TOPIC_PROMPTS.overview, true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // AI 解读要花读者自己的额度（Claude 或自订端点），所以不自动发问，等读者按下主题或宫位
 
-  // Inject palace analysis when palace selected
+  // 点了宫位：先列出「解读此宫」按钮，读者按下才发问
   useEffect(() => {
     if (!selectedPalace || selectedPalace.branch === lastPalaceBranch.current) return;
-    lastPalaceBranch.current = selectedPalace.branch;
+    setPendingPalace(selectedPalace);
+  }, [selectedPalace]);
 
-    const majorStars = selectedPalace.stars.filter(s => s.type === 'major');
+  const askPalace = (palace: Palace) => {
+    if (loadingRef.current) return;
+    lastPalaceBranch.current = palace.branch;
+    setPendingPalace(null);
+    const name = palace.name.endsWith('宫') ? palace.name : `${palace.name}宫`;
+
+    const majorStars = palace.stars.filter(s => s.type === 'major');
     const starDesc = majorStars.length > 0
       ? majorStars.map(s => `${s.name}${s.siHua ? '化' + s.siHua : ''}`).join('、')
       : '空宫（借对宫）';
-    const role = PALACE_ROLES[selectedPalace.name] ?? '';
+    const role = PALACE_ROLES[name] ?? '';
 
-    const prompt = `请重点分析【${selectedPalace.name}】（主管：${role}），该宫主星为${starDesc}，按以下结构输出：
+    const prompt = `请重点分析【${name}】（主管：${role}），该宫主星为${starDesc}，按以下结构输出：
 
 **【宫位定性】**
-${selectedPalace.name}在命盘中的意义，以及这种星曜配置的整体判断。
+${name}在命盘中的意义，以及这种星曜配置的整体判断。
 
 **【主星解读】**
 主星在此宫的倪海厦体系解读，引用具体观点。
@@ -238,7 +249,7 @@ ${selectedPalace.name}在命盘中的意义，以及这种星曜配置的整体�
 基于此宫的具体建议。`;
 
     sendMessage(prompt, true);
-  }, [selectedPalace]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
 
   // 注入四化飞化分析
   useEffect(() => {
@@ -281,9 +292,14 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chart, messages: apiMessages }),
       });
-      if (res.status === 404) throw new Error('api-missing');
-      if (!res.ok) throw new Error('请求失败');
-      if (!res.body) throw new Error('无响应流');
+      if (!res.ok || !res.body) {
+        // site/api-bridge.ts 在标头放了给读者看的说明；Next 版没有接口时是 404
+        const copy = res.headers.get('x-ai-error');
+        throw {
+          copy: copy ? decodeURIComponent(copy) : res.status === 404 ? NO_PROVIDER_COPY : undefined,
+          setup: res.status === 404 || res.headers.get('x-ai-settings') === '1',
+        };
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -311,8 +327,8 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
         }
       }
     } catch (e) {
-      const missing = e instanceof Error && e.message === 'api-missing';
-      setMessages(prev => [...prev, { role: 'assistant', content: missing ? '开源版不含 AI 解读接口（/api/interpret），需要你自己实现后才能用，详见 README「快速开始」。排盘本身不需要任何 API Key。' : '解读失败，请稍后重试。' }]);
+      const f = e as { copy?: string; setup?: boolean };
+      setMessages(prev => [...prev, { role: 'assistant', content: f.copy ?? '解读中断了，请稍后再试一次。', error: true, setup: f.setup }]);
     } finally {
       setLoading(false);
       loadingRef.current = false;
@@ -326,7 +342,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
 
     const userMsg: Message = { role: 'user', content: text, hidden };
     // Capture current messages synchronously via ref (avoids stale closure)
-    const apiMessages = [...messagesRef.current, userMsg].map(m => ({
+    const apiMessages = [...messagesRef.current, userMsg].filter(m => !m.error).map(m => ({
       role: m.role,
       content: m.content,
     }));
@@ -359,7 +375,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
                 key={t.key}
                 onClick={() => handleTopicClick(t.key)}
                 disabled={loading}
-                className="py-1.5 text-[10px] font-medium rounded-lg transition-all duration-150 disabled:opacity-40"
+                className="py-1.5 text-[12px] font-medium rounded-lg transition-all duration-150 disabled:opacity-40"
                 style={{
                   background: isActive ? 'rgba(212,168,67,0.12)' : 'transparent',
                   border: `1px solid ${isActive ? 'rgba(212,168,67,0.3)' : 'var(--t-border)'}`,
@@ -376,11 +392,26 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
       {/* ── Messages ── */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
 
-        {/* Loading state before first message */}
+        {/* 尚未发问：说明 + 开始按钮 */}
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-3" style={{ color: 'var(--t-gold)', opacity: 0.1 }}>✦</div>
-            <p className="text-[10px] animate-pulse" style={{ color: 'var(--t-faint)' }}>命格解读生成中…</p>
+          <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-2">
+            <div className="text-4xl" style={{ color: 'var(--t-gold)', opacity: 0.25 }}>✦</div>
+            <p className="text-[13px] leading-relaxed" style={{ color: 'var(--t-text2)' }}>
+              选上方主题，或点命盘上的宫位，<br />请 AI 依倪海厦体系解读你的命盘。
+            </p>
+            <button
+              type="button"
+              onClick={() => (provider === null ? openAiSettings() : handleTopicClick('overview'))}
+              disabled={loading || provider === undefined}
+              className="px-6 py-2.5 rounded-full text-[13px] font-semibold tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: 'var(--t-gold)', color: 'var(--bg-0)' }}
+            >
+              {provider === null ? '先设定模型' : '开始解读命格'}
+            </button>
+            <p className="text-[11px] leading-relaxed max-w-[300px]" style={{ color: 'var(--t-faint)' }}>
+              {provider === null && NO_PROVIDER_COPY}
+              {provider?.kind === 'claude' && '第一次使用会跳出视窗请你允许 Claude，费用计入你自己的 Claude 帐号。'}
+            </p>
           </div>
         )}
 
@@ -397,7 +428,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
                   className="flex justify-end"
                 >
                   <div
-                    className="max-w-[85%] rounded-xl px-3 py-2 text-[11px]"
+                    className="max-w-[85%] rounded-xl px-3 py-2 text-[13px]"
                     style={{
                       background: 'rgba(212,168,67,0.08)',
                       border: '1px solid rgba(212,168,67,0.18)',
@@ -419,21 +450,41 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
                 animate={{ opacity: 1, y: 0 }}
               >
                 <div
-                  className="text-[9px] tracking-widest mb-2 flex items-center gap-1.5"
+                  className="text-[11px] tracking-widest mb-2 flex items-center gap-1.5"
                   style={{ color: 'var(--t-faint)' }}
                 >
                   <span style={{ color: 'var(--t-gold)', opacity: 0.4 }}>✦</span>
                   命理解读
                 </div>
                 <AiContent text={msg.content} streaming={loading && isLastMsg} />
+                {msg.setup && provider?.kind !== 'claude' && (
+                  <button type="button" className="ai-settings-link mt-2" onClick={openAiSettings}>模型设定</button>
+                )}
               </motion.div>
             );
           })}
         </AnimatePresence>
+
+        {loading && messages[messages.length - 1]?.role === 'user' && (
+          <p className="text-[12px] animate-pulse" style={{ color: 'var(--t-faint)' }}>
+            {provider?.kind === 'claude' ? 'Claude' : 'AI'} 正在看你的命盘，约需半分钟…
+          </p>
+        )}
       </div>
 
       {/* ── Input ── */}
       <div className="flex-shrink-0 px-3 pb-3 pt-2" style={{ borderTop: '1px solid var(--t-border)' }}>
+        {pendingPalace && (
+          <button
+            type="button"
+            onClick={() => askPalace(pendingPalace)}
+            disabled={loading}
+            className="w-full mb-2 py-2 rounded-lg text-[12px] font-medium transition-all disabled:opacity-40"
+            style={{ background: 'rgba(212,168,67,0.12)', border: '1px solid rgba(212,168,67,0.3)', color: 'var(--t-gold)' }}
+          >
+            解读【{pendingPalace.name.endsWith('宫') ? pendingPalace.name : pendingPalace.name + '宫'}】
+          </button>
+        )}
         <div className="flex gap-2">
           <input
             type="text"
@@ -442,7 +493,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="继续追问，如：今年适合换工作吗？"
             disabled={loading}
-            className="flex-1 rounded-lg px-3 py-2 text-[11px] focus:outline-none transition-colors"
+            className="flex-1 min-w-0 rounded-lg px-3 py-2 text-[13px] focus:outline-none transition-colors"
             style={{
               background: 'var(--t-card)',
               border: '1px solid var(--t-border)',
@@ -452,7 +503,7 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="px-3 py-2 rounded-lg text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-3 py-2 rounded-lg text-[13px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             style={{
               background: 'rgba(212,168,67,0.15)',
               border: '1px solid rgba(212,168,67,0.25)',
@@ -462,6 +513,12 @@ ${selectedSiHua.starName}化${selectedSiHua.siHua}落在【${palaceName}】，�
             {loading ? '…' : '追问'}
           </button>
         </div>
+        {provider?.kind === 'openai' && (
+          <button type="button" onClick={openAiSettings}
+            className="mt-1.5 text-[11px] truncate max-w-full" style={{ color: 'var(--t-faint)' }}>
+            模型：{provider.model} · 变更
+          </button>
+        )}
       </div>
 
     </div>

@@ -95,7 +95,7 @@ export default async function ChapterPage({ params }: { params: Promise<{ book: 
                   color: 'var(--tx-0)',
                   lineHeight: 2,
                   letterSpacing: '0.04em',
-                  fontFamily: '"PingFang SC", "Hiragino Sans GB", serif',
+                  fontFamily: '"PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "PingFang SC", serif',
                 }}>
                   {p.text}
                 </p>

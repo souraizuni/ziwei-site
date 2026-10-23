@@ -44,7 +44,7 @@ export default function KnowledgeHomePage() {
         </h1>
         <p style={{ fontSize: '14px', color: 'var(--tx-2)', letterSpacing: '0.08em', maxWidth: '600px', margin: '0 auto', lineHeight: 1.7 }}>
           14 主星 × 13 宫位 = <strong style={{ color: 'var(--ac)' }}>{ALL_STARS.length * ALL_TOPICS.length}</strong> 项专题<br />
-          基于倪海厦《天纪》体系编纂 · 含古籍引证
+          依倪海厦《天纪》体系 · 点选专题由 AI 即时讲解
         </p>
       </div>
 
@@ -100,7 +100,6 @@ export default function KnowledgeHomePage() {
               <div className="flex flex-wrap gap-2">
                 {ALL_TOPICS.map(t => {
                   const k = getKnowledge(star, t);
-                  if (!k.exists) return null;
                   return (
                     <Link
                       key={t}
@@ -115,7 +114,7 @@ export default function KnowledgeHomePage() {
                         textDecoration: 'none',
                       }}
                     >
-                      入{k.palaceName} · {TOPIC_LABEL[t]}
+                      入{k.palaceName.replace(/宫$/, '')}宫 · {TOPIC_LABEL[t]}
                     </Link>
                   );
                 })}

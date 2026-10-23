@@ -1,0 +1,4 @@
+/* 单页版补充：表单控件与卷轴跟随本站的明暗主题（平台外壳预设是亮色） */
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+html, body { background: var(--bg-0); }

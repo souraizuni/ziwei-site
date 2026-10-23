@@ -14,6 +14,48 @@ export interface ProvinceInfo {
 //   打开地点选择框时才动态加载（lib/ziwei/county-data.ts）。区县选中后城市字段存成「地级市·区县」，
 //   见 lib/ziwei/county-label.ts。省直辖县级单位（仙桃、海南各市县、新疆兵团各市）仍是本表的市一级。
 export const PROVINCES: ProvinceInfo[] = [
+  // ─── 台湾 / 香港 / 澳门（排在最前，方便这几地的读者）──────────
+  {
+    name: '台湾',
+    cities: [
+      { name: '台北', longitude: 121.5 },
+      { name: '新北', longitude: 121.5 },
+      { name: '桃园', longitude: 121.3 },
+      { name: '台中', longitude: 120.7 },
+      { name: '台南', longitude: 120.2 },
+      { name: '高雄', longitude: 120.3 },
+      { name: '基隆', longitude: 121.7 },
+      { name: '新竹', longitude: 120.9 },
+      { name: '嘉义', longitude: 120.4 },
+      { name: '苗栗', longitude: 120.8 },
+      { name: '彰化', longitude: 120.5 },
+      { name: '南投', longitude: 120.7 },
+      { name: '云林', longitude: 120.5 },
+      { name: '屏东', longitude: 120.5 },
+      { name: '宜兰', longitude: 121.7 },
+      { name: '花莲', longitude: 121.6 },
+      { name: '台东', longitude: 121.1 },
+      { name: '澎湖', longitude: 119.6 },
+      { name: '金门', longitude: 118.3 },
+      { name: '连江', longitude: 119.9 },
+    ],
+  },
+  {
+    name: '香港',
+    cities: [
+      { name: '香港', longitude: 114.2 },
+      { name: '九龙', longitude: 114.2 },
+      { name: '新界', longitude: 114.2 },
+    ],
+  },
+  {
+    name: '澳门',
+    cities: [
+      { name: '澳门', longitude: 113.5 },
+      { name: '氹仔', longitude: 113.6 },
+      { name: '路环', longitude: 113.6 },
+    ],
+  },
   // ─── 直辖市 ───────────────────────────────────────────
   {
     name: '北京市',
@@ -655,50 +697,6 @@ export const PROVINCES: ProvinceInfo[] = [
       { name: '塔什库尔干（中国最西）', longitude: 75.2 },
     ],
   },
-
-  // ─── 特别行政区 / 台湾 ──────────────────────────────────
-  {
-    name: '香港特别行政区',
-    cities: [
-      { name: '香港', longitude: 114.2 },
-      { name: '九龙', longitude: 114.2 },
-      { name: '新界', longitude: 114.2 },
-    ],
-  },
-  {
-    name: '澳门特别行政区',
-    cities: [
-      { name: '澳门', longitude: 113.5 },
-      { name: '氹仔', longitude: 113.6 },
-      { name: '路环', longitude: 113.6 },
-    ],
-  },
-  {
-    name: '台湾省',
-    cities: [
-      { name: '台北', longitude: 121.5 },
-      { name: '新北', longitude: 121.5 },
-      { name: '桃园', longitude: 121.3 },
-      { name: '台中', longitude: 120.7 },
-      { name: '台南', longitude: 120.2 },
-      { name: '高雄', longitude: 120.3 },
-      { name: '基隆', longitude: 121.7 },
-      { name: '新竹', longitude: 120.9 },
-      { name: '嘉义', longitude: 120.4 },
-      { name: '苗栗', longitude: 120.8 },
-      { name: '彰化', longitude: 120.5 },
-      { name: '南投', longitude: 120.7 },
-      { name: '云林', longitude: 120.5 },
-      { name: '屏东', longitude: 120.5 },
-      { name: '宜兰', longitude: 121.7 },
-      { name: '花莲', longitude: 121.6 },
-      { name: '台东', longitude: 121.1 },
-      { name: '澎湖', longitude: 119.6 },
-      { name: '金门', longitude: 118.3 },
-      { name: '连江', longitude: 119.9 },
-    ],
-  },
-
   // 注：海外出生暂未支持，因 share.ts 真太阳时算法假设输入为北京时间(UTC+8)。
   // 海外用户请把当地时间换算成北京时间再填写（或填出生时所在的中国时区相对城市）。
 ];
